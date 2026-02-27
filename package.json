@@ -2,6 +2,10 @@
   "name": "simple-dictation",
   "displayName": "simple-dictation",
   "description": "A simple vs code extension to enable in-place dictation, via groq whisper and claude.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rdadolf/vscode-dictation.git"
+  },
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.109.0"
