@@ -1,26 +1,19 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+	console.log('simple-dictation is now active');
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "simple-dictation" is now active!');
-
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('simple-dictation.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from simple-dictation!');
+	const startRecording = vscode.commands.registerCommand('simple-dictation.startRecording', () => {
+		vscode.commands.executeCommand('setContext', 'simple-dictation.recording', true);
+		console.log('startRecording');
 	});
 
-	context.subscriptions.push(disposable);
+	const stopRecording = vscode.commands.registerCommand('simple-dictation.stopRecording', () => {
+		vscode.commands.executeCommand('setContext', 'simple-dictation.recording', false);
+		console.log('stopRecording');
+	});
+
+	context.subscriptions.push(startRecording, stopRecording);
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}

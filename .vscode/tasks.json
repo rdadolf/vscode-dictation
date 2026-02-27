@@ -5,11 +5,16 @@
 	"tasks": [
 		{
 			"type": "npm",
-			"script": "watch",
-			"problemMatcher": "$tsc-watch",
-			"isBackground": true,
+			"script": "compile",
+			"problemMatcher": "$tsc",
 			"presentation": {
-				"reveal": "never"
+				"reveal": "silent"
+			},
+			"options": {
+				"shell": {
+					"executable": "cmd.exe",
+					"args": ["/d", "/c"]
+				}
 			},
 			"group": {
 				"kind": "build",

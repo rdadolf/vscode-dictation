@@ -14,8 +14,24 @@
   "contributes": {
     "commands": [
       {
-        "command": "simple-dictation.helloWorld",
-        "title": "Hello World"
+        "command": "simple-dictation.startRecording",
+        "title": "Simple Dictation: Start Recording"
+      },
+      {
+        "command": "simple-dictation.stopRecording",
+        "title": "Simple Dictation: Stop Recording"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "simple-dictation.startRecording",
+        "key": "ctrl+f9",
+        "when": "!simple-dictation.recording"
+      },
+      {
+        "command": "simple-dictation.stopRecording",
+        "key": "ctrl+f9",
+        "when": "simple-dictation.recording"
       }
     ],
     "configuration": {
@@ -35,12 +51,6 @@
           "type": "string",
           "default": "claude-sonnet-4-20250514",
           "description": "Claude model used for transcript cleanup."
-        },
-        "dictation.triggerMode": {
-          "type": "string",
-          "enum": ["hold", "toggle"],
-          "default": "hold",
-          "description": "Recording trigger: hold key to record, or toggle on/off with each press."
         },
         "dictation.secretsFile": {
           "type": "string",
