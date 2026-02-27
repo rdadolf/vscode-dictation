@@ -1,15 +1,40 @@
 import * as assert from 'assert';
-
-// You can import and use all API from the 'vscode' module
-// as well as import your extension to test it
 import * as vscode from 'vscode';
-// import * as myExtension from '../../extension';
 
 suite('Extension Test Suite', () => {
-	vscode.window.showInformationMessage('Start all tests.');
+	setup(async () => {
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	});
 
-	test('Sample test', () => {
-		assert.strictEqual(-1, [1, 2, 3].indexOf(5));
-		assert.strictEqual(-1, [1, 2, 3].indexOf(0));
+	test('inserts placeholder using LF in an LF document', async () => {
+		const doc = await vscode.workspace.openTextDocument({ content: 'AAAAAA' });
+		const editor = await vscode.window.showTextDocument(doc);
+		await editor.edit(eb => eb.setEndOfLine(vscode.EndOfLine.LF));
+		const pos = new vscode.Position(0, 3);
+		editor.selection = new vscode.Selection(pos, pos);
+
+		await vscode.commands.executeCommand('simple-dictation.startRecording');
+		await vscode.commands.executeCommand('simple-dictation.stopRecording');
+
+		assert.strictEqual(doc.getText(), 'AAA\nLorem ipsum placeholder text.\nAAA');
+	});
+
+	test('inserts placeholder using CRLF in a CRLF document', async () => {
+		const doc = await vscode.workspace.openTextDocument({ content: 'AAAAAA' });
+		const editor = await vscode.window.showTextDocument(doc);
+		await editor.edit(eb => eb.setEndOfLine(vscode.EndOfLine.CRLF));
+		const pos = new vscode.Position(0, 3);
+		editor.selection = new vscode.Selection(pos, pos);
+
+		await vscode.commands.executeCommand('simple-dictation.startRecording');
+		await vscode.commands.executeCommand('simple-dictation.stopRecording');
+
+		assert.strictEqual(doc.getText(), 'AAA\r\nLorem ipsum placeholder text.\r\nAAA');
+	});
+
+	test('no active editor: startRecording shows warning and does not throw', async () => {
+		await assert.doesNotReject(async () => {
+			await vscode.commands.executeCommand('simple-dictation.startRecording');
+		});
 	});
 });

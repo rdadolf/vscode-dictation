@@ -5,6 +5,9 @@ let recordingEditor: vscode.TextEditor | undefined;
 export function activate(context: vscode.ExtensionContext) {
 	console.log('simple-dictation is now active');
 
+	const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+	context.subscriptions.push(statusBarItem);
+
 	const startRecording = vscode.commands.registerCommand('simple-dictation.startRecording', () => {
 		const editor = vscode.window.activeTextEditor;
 		if (!editor) {
@@ -13,6 +16,8 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		recordingEditor = editor;
 		vscode.commands.executeCommand('setContext', 'simple-dictation.recording', true);
+		statusBarItem.text = '$(record) Recording...';
+		statusBarItem.show();
 		console.log('startRecording');
 	});
 
@@ -27,9 +32,12 @@ export function activate(context: vscode.ExtensionContext) {
 			return;
 		}
 
+		const eol = editor.document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
 		await editor.edit(editBuilder => {
-			editBuilder.insert(editor.selection.active, '\nLorem ipsum placeholder text.\n');
+			editBuilder.insert(editor.selection.active, `${eol}Lorem ipsum placeholder text.${eol}`);
 		});
+
+		statusBarItem.text = '$(check) Done';
 	});
 
 	context.subscriptions.push(startRecording, stopRecording);
