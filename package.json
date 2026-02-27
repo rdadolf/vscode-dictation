@@ -1,0 +1,76 @@
+{
+  "name": "simple-dictation",
+  "displayName": "simple-dictation",
+  "description": "A simple vs code extension to enable in-place dictation, via groq whisper and claude.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "simple-dictation.helloWorld",
+        "title": "Hello World"
+      }
+    ],
+    "configuration": {
+      "title": "Simple Dictation",
+      "properties": {
+        "dictation.daemonPort": {
+          "type": "number",
+          "default": 49152,
+          "description": "TCP port the audio daemon listens on."
+        },
+        "dictation.groqModel": {
+          "type": "string",
+          "default": "whisper-large-v3",
+          "description": "Groq model used for transcription."
+        },
+        "dictation.claudeModel": {
+          "type": "string",
+          "default": "claude-sonnet-4-20250514",
+          "description": "Claude model used for transcript cleanup."
+        },
+        "dictation.triggerMode": {
+          "type": "string",
+          "enum": ["hold", "toggle"],
+          "default": "hold",
+          "description": "Recording trigger: hold key to record, or toggle on/off with each press."
+        },
+        "dictation.secretsFile": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to a JSON file containing GROQ_API_KEY and ANTHROPIC_API_KEY."
+        },
+        "dictation.promptAppend": {
+          "type": "string",
+          "default": "",
+          "description": "Optional text appended to the Claude system prompt for domain-specific adjustments."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.109.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.54.0",
+    "eslint": "^9.39.2",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}

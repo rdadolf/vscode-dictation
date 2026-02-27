@@ -1,0 +1,7 @@
+node_modules/
+out/
+*.vsix
+*.flac
+*-secrets.json
+.vscode-test/
+SPEC.md
