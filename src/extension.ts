@@ -1,9 +1,44 @@
 import * as childProcess from 'child_process';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+const SECRET_KEYS = ['GROQ_API_KEY', 'ANTHROPIC_API_KEY'] as const;
+export type Secrets = Record<typeof SECRET_KEYS[number], string>;
+
+export function loadSecrets(secretsPath: string): { secrets?: Secrets; error?: string } {
+	if (!secretsPath) {
+		return { error: 'dictation.secretsFile is not configured. Set it in VS Code settings.' };
+	}
+	let raw: string;
+	try {
+		raw = fs.readFileSync(secretsPath, 'utf8');
+	} catch (err: unknown) {
+		const msg = err instanceof Error ? err.message : String(err);
+		return { error: `Cannot read secrets file "${secretsPath}": ${msg}` };
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return { error: `Secrets file is not valid JSON: "${secretsPath}"` };
+	}
+	if (typeof parsed !== 'object' || parsed === null) {
+		return { error: `Secrets file must be a JSON object: "${secretsPath}"` };
+	}
+	const obj = parsed as Record<string, unknown>;
+	const missingKeys = SECRET_KEYS.filter(k => typeof obj[k] !== 'string' || !obj[k]);
+	if (missingKeys.length > 0) {
+		return { error: `Secrets file is missing keys: ${missingKeys.join(', ')} ("${secretsPath}")` };
+	}
+	return {
+		secrets: Object.fromEntries(SECRET_KEYS.map(k => [k, obj[k] as string])) as Secrets,
+	};
+}
+
 let recordingEditor: vscode.TextEditor | undefined;
 export let daemonProcess: childProcess.ChildProcess | undefined;
+export let secrets: Secrets | undefined;
 
 function spawnDaemon(context: vscode.ExtensionContext, output: vscode.OutputChannel): void {
 	const daemonPath = path.join(context.extensionPath, 'daemon.py');
@@ -41,12 +76,24 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(output);
 	output.show(true); // bring Output panel into focus without stealing editor focus
 
+	const secretsPath = vscode.workspace.getConfiguration('dictation').get<string>('secretsFile', '');
+	const { secrets: loadedSecrets, error: secretsError } = loadSecrets(secretsPath);
+	if (secretsError) {
+		vscode.window.showErrorMessage(`Simple Dictation: ${secretsError}`);
+	} else {
+		secrets = loadedSecrets;
+	}
+
 	spawnDaemon(context, output);
 
 	const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 	context.subscriptions.push(statusBarItem);
 
 	const startRecording = vscode.commands.registerCommand('simple-dictation.startRecording', () => {
+		if (!secrets) {
+			vscode.window.showErrorMessage('Simple Dictation: dictation.secretsFile is not configured. Set it in VS Code settings.');
+			return;
+		}
 		const editor = vscode.window.activeTextEditor;
 		if (!editor) {
 			vscode.window.showWarningMessage('Simple Dictation: no active editor.');
