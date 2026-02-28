@@ -42,6 +42,7 @@ export function loadSecrets(secretsPath: string): { secrets?: Secrets; error?: s
 // Recording state — written by startRecording, read and cleared by stopRecording.
 let recordingEditor: vscode.TextEditor | undefined;
 let recordingTimeout: ReturnType<typeof setTimeout> | undefined;
+let recordingFlashInterval: ReturnType<typeof setInterval> | undefined;
 export let daemonProcess: childProcess.ChildProcess | undefined;
 export let secrets: Secrets | undefined;
 
@@ -92,6 +93,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const secretsPath = vscode.workspace.getConfiguration('dictation').get<string>('secretsFile', '');
 	const { secrets: loadedSecrets, error: secretsError } = loadSecrets(secretsPath);
 	if (secretsError) {
+		output.appendLine(`Error: ${secretsError}`);
 		vscode.window.showErrorMessage(`Simple Dictation: ${secretsError}`);
 	} else {
 		secrets = loadedSecrets;
@@ -106,6 +108,13 @@ export function activate(context: vscode.ExtensionContext) {
 	const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 	context.subscriptions.push(statusBarItem);
 
+	// Stops the recording flash and resets the status bar background to neutral.
+	function stopRecordingFlash() {
+		clearInterval(recordingFlashInterval);
+		recordingFlashInterval = undefined;
+		statusBarItem.backgroundColor = undefined;
+	}
+
 	const startRecording = vscode.commands.registerCommand('simple-dictation.startRecording', async () => {
 		if (!secrets) {
 			vscode.window.showErrorMessage('Simple Dictation: dictation.secretsFile is not configured. Set it in VS Code settings.');
@@ -113,6 +122,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		const editor = vscode.window.activeTextEditor;
 		if (!editor) {
+			output.appendLine('startRecording: no active editor');
 			vscode.window.showWarningMessage('Simple Dictation: no active editor.');
 			return;
 		}
@@ -129,8 +139,19 @@ export function activate(context: vscode.ExtensionContext) {
 		// attempt sendStop() if the daemon rejected the start.
 		recordingEditor = editor;
 		vscode.commands.executeCommand('setContext', 'simple-dictation.recording', true);
+
+		// Flash the status bar red to make the recording state unmissable.
 		statusBarItem.text = '$(record) Recording...';
+		statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
 		statusBarItem.show();
+		let flashState = false;
+		recordingFlashInterval = setInterval(() => {
+			flashState = !flashState;
+			statusBarItem.backgroundColor = flashState
+				? new vscode.ThemeColor('statusBarItem.errorBackground')
+				: undefined;
+		}, 600);
+
 		recordingTimeout = setTimeout(
 			() => vscode.commands.executeCommand('simple-dictation.stopRecording'),
 			RECORDING_TIMEOUT_MS,
@@ -141,6 +162,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const stopRecording = vscode.commands.registerCommand('simple-dictation.stopRecording', async () => {
 		clearTimeout(recordingTimeout);
 		recordingTimeout = undefined;
+		stopRecordingFlash();
 
 		const editor = recordingEditor;
 		recordingEditor = undefined;
@@ -150,6 +172,8 @@ export function activate(context: vscode.ExtensionContext) {
 				vscode.window.showWarningMessage('Simple Dictation: no editor was active when recording started.');
 				return;
 			}
+
+			statusBarItem.text = '$(sync~spin) Transcribing...';
 
 			const flacPath = await daemonClient.sendStop();
 			output.appendLine(`Recording saved: ${flacPath}`);
@@ -177,26 +201,26 @@ export function activate(context: vscode.ExtensionContext) {
 			try {
 				insertText = await formatFn(transcript, secrets!.ANTHROPIC_API_KEY, promptAppend, claudeModel);
 				output.appendLine('Formatting complete');
-				statusBarItem.text = '$(check) Done';
 			} catch (claudeErr: unknown) {
 				// On Claude timeout or API error, fall back to the raw Groq transcript.
 				const msg = claudeErr instanceof Error ? claudeErr.message : String(claudeErr);
 				output.appendLine(`Claude error (falling back to raw transcript): ${msg}`);
+				vscode.window.showWarningMessage(`Simple Dictation: formatting failed, inserted raw transcript — ${msg}`);
 				insertText = `[unformatted]${eol}${transcript}`;
-				statusBarItem.text = '$(warning) Unformatted';
 			}
 
 			await editor.edit(editBuilder => {
 				editBuilder.insert(editor.selection.active, `${eol}${insertText}${eol}`);
 			});
+			statusBarItem.text = '$(check) Done';
 
 		} catch (err: unknown) {
-			// On Groq timeout or API error, log details and show error in status bar.
-			// Don't insert anything into the editor.
+			// On Groq timeout, daemon error, etc., log details and show a toast.
+			// Don't insert anything into the editor; hide the status bar.
 			const msg = err instanceof Error ? err.message : String(err);
 			output.appendLine(`Error: ${msg}`);
-			statusBarItem.text = '$(error) Error';
 			vscode.window.showErrorMessage(`Simple Dictation: ${msg}`);
+			statusBarItem.hide();
 		} finally {
 			// setContext goes in finally so the keybinding always reflects reality.
 			// I.e., a failed sendStop() should still re-enable the start binding.

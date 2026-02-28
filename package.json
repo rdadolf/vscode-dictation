@@ -50,12 +50,12 @@
         },
         "dictation.groqModel": {
           "type": "string",
-          "default": "whisper-large-v3",
+          "default": "whisper-large-v3-turbo",
           "description": "Groq model used for transcription."
         },
         "dictation.claudeModel": {
           "type": "string",
-          "default": "claude-sonnet-4-20250514",
+          "default": "claude-sonnet-4-latest",
           "description": "Claude model used for transcript cleanup."
         },
         "dictation.secretsFile": {

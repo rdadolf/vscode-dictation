@@ -80,7 +80,12 @@ async def handler(websocket) -> None:
                     log.warning('start received while already recording; ignoring')
                     await websocket.send(json.dumps({'status': 'error', 'message': 'already recording'}))
                     continue
-                recorder.start()
+                try:
+                    recorder.start()
+                except sd.PortAudioError as e:
+                    log.error('Failed to open audio input: %s', e)
+                    await websocket.send(json.dumps({'status': 'error', 'message': f'microphone not available: {e}'}))
+                    continue
                 log.info('Recording started')
                 await websocket.send(json.dumps({'status': 'ok'}))
 
@@ -120,7 +125,11 @@ async def main(port: int) -> None:
             log.info('Daemon ready')
             await asyncio.Future()  # run forever
     except OSError as e:
-        log.error('Failed to bind to port %d: %s', port, e)
+        log.error(
+            'Cannot bind to port %d: %s — a previous daemon may still be running. '
+            'Kill it and restart VS Code, or change dictation.daemonPort in settings.',
+            port, e,
+        )
         sys.exit(1)
 
 
