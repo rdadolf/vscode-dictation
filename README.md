@@ -22,7 +22,7 @@ npm install -g yo generator-code @vscode/vsce
 
 **Python audio and daemon packages**
 ```
-pip install sounddevice soundfile websockets
+pip install numpy sounddevice soundfile websockets
 ```
 
 **VS Code** (if not already installed)

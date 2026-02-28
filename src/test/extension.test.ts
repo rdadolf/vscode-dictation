@@ -82,7 +82,6 @@ suite('Extension Test Suite', () => {
 		suiteSetup(() => {
 			// startRecording checks ext.secrets before doing anything. Populate it with
 			// dummy values so the guard passes; secrets validation is tested above.
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			(ext as any).secrets = { GROQ_API_KEY: 'test-groq-key', ANTHROPIC_API_KEY: 'test-anthropic-key' };
 		});
 
