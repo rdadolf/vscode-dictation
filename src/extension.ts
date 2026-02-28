@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { DaemonClient } from './daemon.js';
+import { format } from './format.js';
 import { transcribe } from './transcribe.js';
 
 const SECRET_KEYS = ['GROQ_API_KEY', 'ANTHROPIC_API_KEY'] as const;
@@ -47,8 +48,9 @@ export let secrets: Secrets | undefined;
 // Hard limit to prevent a runaway recording if stopRecording is never called.
 const RECORDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
-// Exported so tests can swap in a mock without needing a real Groq API key.
+// Exported so tests can swap in mocks without needing real API keys.
 export let transcribeFn: typeof transcribe = transcribe;
+export let formatFn: typeof format = format;
 
 function spawnDaemon(context: vscode.ExtensionContext, output: vscode.OutputChannel): void {
 	const daemonPath = path.join(context.extensionPath, 'daemon.py');
@@ -152,11 +154,11 @@ export function activate(context: vscode.ExtensionContext) {
 			const flacPath = await daemonClient.sendStop();
 			output.appendLine(`Recording saved: ${flacPath}`);
 
-			const model = vscode.workspace.getConfiguration('dictation').get<string>('groqModel', 'whisper-large-v3-turbo')!;
+			const groqModel = vscode.workspace.getConfiguration('dictation').get<string>('groqModel', 'whisper-large-v3-turbo')!;
 
 			let transcript: string;
 			try {
-				transcript = await transcribeFn(flacPath, secrets!.GROQ_API_KEY, model);
+				transcript = await transcribeFn(flacPath, secrets!.GROQ_API_KEY, groqModel);
 				output.appendLine('Transcription complete');
 			} finally {
 				// Delete the FLAC file whether transcription succeeded or failed.
@@ -167,14 +169,27 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
-			// Insert transcript with [unformatted] tag so it is visually
-			// distinguishable until the Claude formatting pass is added.
 			const eol = editor.document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+			const promptAppend = vscode.workspace.getConfiguration('dictation').get<string>('promptAppend', '');
+			const claudeModel = vscode.workspace.getConfiguration('dictation').get<string>('claudeModel', 'claude-haiku-4-5-20251001')!;
+
+			let insertText: string;
+			try {
+				insertText = await formatFn(transcript, secrets!.ANTHROPIC_API_KEY, promptAppend, claudeModel);
+				output.appendLine('Formatting complete');
+				statusBarItem.text = '$(check) Done';
+			} catch (claudeErr: unknown) {
+				// On Claude timeout or API error, fall back to the raw Groq transcript.
+				const msg = claudeErr instanceof Error ? claudeErr.message : String(claudeErr);
+				output.appendLine(`Claude error (falling back to raw transcript): ${msg}`);
+				insertText = `[unformatted]${eol}${transcript}`;
+				statusBarItem.text = '$(warning) Unformatted';
+			}
+
 			await editor.edit(editBuilder => {
-				editBuilder.insert(editor.selection.active, `${eol}[unformatted]${eol}${transcript}${eol}`);
+				editBuilder.insert(editor.selection.active, `${eol}${insertText}${eol}`);
 			});
 
-			statusBarItem.text = '$(check) Done';
 		} catch (err: unknown) {
 			// On Groq timeout or API error, log details and show error in status bar.
 			// Don't insert anything into the editor.
