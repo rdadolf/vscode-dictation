@@ -45,7 +45,7 @@ All settings live under the `dictation.*` namespace in `settings.json`:
 | `dictation.secretsFile` | string | `""` | Absolute path to the secrets JSON file |
 | `dictation.daemonPort` | number | `49152` | TCP port the audio daemon listens on |
 | `dictation.groqModel` | string | `whisper-large-v3-turbo` | Groq model used for transcription |
-| `dictation.claudeModel` | string | `claude-sonnet-4-latest` | Claude model used for transcript cleanup |
+| `dictation.claudeModel` | string | `claude-haiku-4-5` | Claude model used for transcript cleanup |
 | `dictation.promptAppend` | string | `""` | Text appended to the Claude system prompt for domain-specific adjustments |
 
 ## Usage
@@ -53,9 +53,8 @@ All settings live under the `dictation.*` namespace in `settings.json`:
 Press **Ctrl+F9** to start recording. Press **Ctrl+F9** again to stop. The extension will transcribe and clean up your audio, then insert the result at the cursor in the active editor.
 
 The status bar shows the current state:
-- **Recording...** — microphone is active
-- **Transcribing...** — sending audio to Groq
-- **Formatting...** — sending transcript to Claude
+- **Recording...** — microphone is active (status bar flashes red)
+- **Transcribing...** — sending audio to Groq and cleaning up with Claude
 - **Done** — text inserted
 
 If Claude is unavailable, the raw transcript is inserted prefixed with `[unformatted]`.

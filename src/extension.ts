@@ -59,13 +59,11 @@ function spawnDaemon(context: vscode.ExtensionContext, output: vscode.OutputChan
 
 	output.appendLine(`Spawning daemon: py ${daemonPath} --port ${port}`);
 	daemonProcess = childProcess.spawn('py', [daemonPath, '--port', String(port)]);
-	console.log(`[simple-dictation] spawn returned, pid=${daemonProcess.pid}`);
 
 	daemonProcess.stdout?.on('data', (data: Buffer) => output.append(data.toString()));
 	daemonProcess.stderr?.on('data', (data: Buffer) => output.append(data.toString()));
 
 	daemonProcess.on('exit', (code) => {
-		console.log(`[simple-dictation] daemon exited with code ${code}`);
 		if (code !== 0 && code !== null) {
 			vscode.window.showWarningMessage(
 				`Simple Dictation: daemon exited with code ${code}. Check "Simple Dictation" in the Output panel.`
@@ -75,7 +73,6 @@ function spawnDaemon(context: vscode.ExtensionContext, output: vscode.OutputChan
 	});
 
 	daemonProcess.on('error', (err) => {
-		console.log(`[simple-dictation] daemon spawn error: ${err.message}`);
 		output.appendLine(`Failed to spawn daemon: ${err.message}`);
 		vscode.window.showErrorMessage(`Simple Dictation: failed to start daemon — ${err.message}`);
 		daemonProcess = undefined;
@@ -84,11 +81,8 @@ function spawnDaemon(context: vscode.ExtensionContext, output: vscode.OutputChan
 
 export function activate(context: vscode.ExtensionContext) {
 	// Initialization order: output channel → secret keys → spawn daemon process → register WebSocket client (but don't connect) → status bar
-	console.log('simple-dictation is now active');
-
 	const output = vscode.window.createOutputChannel('Simple Dictation');
 	context.subscriptions.push(output);
-	output.show(true); // bring Output panel into focus without stealing editor focus
 
 	const secretsPath = vscode.workspace.getConfiguration('dictation').get<string>('secretsFile', '');
 	const { secrets: loadedSecrets, error: secretsError } = loadSecrets(secretsPath);
@@ -156,7 +150,6 @@ export function activate(context: vscode.ExtensionContext) {
 			() => vscode.commands.executeCommand('simple-dictation.stopRecording'),
 			RECORDING_TIMEOUT_MS,
 		);
-		console.log('startRecording');
 	});
 
 	const stopRecording = vscode.commands.registerCommand('simple-dictation.stopRecording', async () => {
@@ -195,7 +188,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 			const eol = editor.document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
 			const promptAppend = vscode.workspace.getConfiguration('dictation').get<string>('promptAppend', '');
-			const claudeModel = vscode.workspace.getConfiguration('dictation').get<string>('claudeModel', 'claude-haiku-4-5-20251001')!;
+			const claudeModel = vscode.workspace.getConfiguration('dictation').get<string>('claudeModel', 'claude-haiku-4-5')!;
 
 			let insertText: string;
 			try {

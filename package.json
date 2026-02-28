@@ -55,7 +55,7 @@
         },
         "dictation.claudeModel": {
           "type": "string",
-          "default": "claude-sonnet-4-latest",
+          "default": "claude-haiku-4-5",
           "description": "Claude model used for transcript cleanup."
         },
         "dictation.secretsFile": {
