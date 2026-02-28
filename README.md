@@ -82,5 +82,5 @@ Reload the window afterward (`Ctrl+Shift+P` → "Developer: Reload Window").
 
 **Uninstall:**
 ```
-code --uninstall-extension rdadolf.simple-dictation
+code --uninstall-extension undefined_publisher.simple-dictation
 ```
