@@ -20,9 +20,9 @@ winget install Python.Python.3.13
 npm install -g yo generator-code @vscode/vsce
 ```
 
-**Python audio packages**
+**Python audio and daemon packages**
 ```
-pip install sounddevice soundfile
+pip install sounddevice soundfile websockets
 ```
 
 **VS Code** (if not already installed)
