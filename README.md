@@ -1,48 +1,85 @@
-# vscode-dictation
-A simple vs code extension to enable in-place dictation, via groq whisper and claude.
+# Simple Dictation for VS Code
 
-## Development Requirements
+Push-to-talk dictation that inserts cleaned, formatted text at your cursor. Records audio via a local Python daemon, transcribes with Groq Whisper, and cleans up the transcript with Claude.
 
-Install the following before building or running the extension.
+## Prerequisites
 
-**Node.js (LTS)**
 ```
-winget install OpenJS.NodeJS.LTS
-```
-
-**Python 3.10+**
-```
-winget install Python.Python.3.13
-```
-
-**npm globals** (yo, generator-code, vsce)
-```
-npm install -g yo generator-code @vscode/vsce
-```
-
-**Python audio and daemon packages**
-```
+winget install OpenJS.NodeJS.LTS        # Node.js
+winget install Python.Python.3.13       # Python 3.10+
 pip install numpy sounddevice soundfile websockets
+npm install -g @vscode/vsce
 ```
 
-**VS Code** (if not already installed)
+## Secrets File
+
+Create a JSON file outside the repo with your API keys:
+
+```json
+{
+  "GROQ_API_KEY": "gsk_...",
+  "ANTHROPIC_API_KEY": "sk-ant-..."
+}
 ```
-winget install Microsoft.VisualStudioCode
+
+Lock it down so only your user can read it:
+
 ```
+icacls C:\Users\you\.dictation-secrets.json /inheritance:r /grant:r "%USERNAME%:R"
+```
+
+Then point the extension at it in your VS Code `settings.json`:
+
+```json
+{
+  "dictation.secretsFile": "C:/Users/you/.dictation-secrets.json"
+}
+```
+
+## VS Code Settings
+
+All settings live under the `dictation.*` namespace in `settings.json`:
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `dictation.secretsFile` | string | `""` | Absolute path to the secrets JSON file |
+| `dictation.daemonPort` | number | `49152` | TCP port the audio daemon listens on |
+| `dictation.groqModel` | string | `whisper-large-v3-turbo` | Groq model used for transcription |
+| `dictation.claudeModel` | string | `claude-sonnet-4-latest` | Claude model used for transcript cleanup |
+| `dictation.promptAppend` | string | `""` | Text appended to the Claude system prompt for domain-specific adjustments |
+
+## Usage
+
+Press **Ctrl+F9** to start recording. Press **Ctrl+F9** again to stop. The extension will transcribe and clean up your audio, then insert the result at the cursor in the active editor.
+
+The status bar shows the current state:
+- **Recording...** — microphone is active
+- **Transcribing...** — sending audio to Groq
+- **Formatting...** — sending transcript to Claude
+- **Done** — text inserted
+
+If Claude is unavailable, the raw transcript is inserted prefixed with `[unformatted]`.
 
 ## Build and Install
 
-**Package the extension:**
+**1. Clone and install dependencies:**
+```
+git clone https://github.com/rdadolf/vscode-dictation.git
+cd vscode-dictation
+npm install
+```
+
+**2. Package the extension:**
 ```
 vsce package
 ```
-This compiles the TypeScript and produces `simple-dictation-x.x.x.vsix` in the repo root. Re-run this after any code changes.
+This compiles the TypeScript and produces `simple-dictation-0.0.1.vsix`.
 
-**Install into VS Code:**
+**3. Install into VS Code:**
 ```
 code --install-extension simple-dictation-0.0.1.vsix
 ```
-Reload the VS Code window after installing (`Ctrl+Shift+P` → "Developer: Reload Window").
+Reload the window afterward (`Ctrl+Shift+P` → "Developer: Reload Window").
 
 **Uninstall:**
 ```
