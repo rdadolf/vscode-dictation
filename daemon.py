@@ -97,11 +97,7 @@ async def handler(websocket) -> None:
                 log.info('Recording saved to %s (%d frames)', tmp_path, len(audio))
 
                 await websocket.send(json.dumps({'status': 'ok', 'path': tmp_path}))
-
-                # TODO(DEV-23): Delete after Groq has read the file, not immediately.
-                # For now the extension only logs the path, so it's safe to clean up here.
-                os.remove(tmp_path)
-                log.info('Deleted temp file %s', tmp_path)
+                # The extension is responsible for deleting the file after Groq reads it.
 
             else:
                 log.warning('Unknown command: %r', cmd)

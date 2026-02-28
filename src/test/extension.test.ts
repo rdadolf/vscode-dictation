@@ -83,9 +83,13 @@ suite('Extension Test Suite', () => {
 			// startRecording checks ext.secrets before doing anything. Populate it with
 			// dummy values so the guard passes; secrets validation is tested above.
 			(ext as any).secrets = { GROQ_API_KEY: 'test-groq-key', ANTHROPIC_API_KEY: 'test-anthropic-key' };
+
+			// Replace the real Groq transcription call with a deterministic stub so
+			// tests don't require a live API key or network access.
+			(ext as any).transcribeFn = async () => 'Test transcript.';
 		});
 
-		test('inserts placeholder using LF in an LF document', async () => {
+		test('inserts transcript with [unformatted] tag using LF in an LF document', async () => {
 			const doc = await vscode.workspace.openTextDocument({ content: 'AAAAAA' });
 			const editor = await vscode.window.showTextDocument(doc);
 			await editor.edit(eb => eb.setEndOfLine(vscode.EndOfLine.LF));
@@ -95,10 +99,10 @@ suite('Extension Test Suite', () => {
 			await vscode.commands.executeCommand('simple-dictation.startRecording');
 			await vscode.commands.executeCommand('simple-dictation.stopRecording');
 
-			assert.strictEqual(doc.getText(), 'AAA\nLorem ipsum placeholder text.\nAAA');
+			assert.strictEqual(doc.getText(), 'AAA\n[unformatted]\nTest transcript.\nAAA');
 		});
 
-		test('inserts placeholder using CRLF in a CRLF document', async () => {
+		test('inserts transcript with [unformatted] tag using CRLF in a CRLF document', async () => {
 			const doc = await vscode.workspace.openTextDocument({ content: 'AAAAAA' });
 			const editor = await vscode.window.showTextDocument(doc);
 			await editor.edit(eb => eb.setEndOfLine(vscode.EndOfLine.CRLF));
@@ -108,7 +112,25 @@ suite('Extension Test Suite', () => {
 			await vscode.commands.executeCommand('simple-dictation.startRecording');
 			await vscode.commands.executeCommand('simple-dictation.stopRecording');
 
-			assert.strictEqual(doc.getText(), 'AAA\r\nLorem ipsum placeholder text.\r\nAAA');
+			assert.strictEqual(doc.getText(), 'AAA\r\n[unformatted]\r\nTest transcript.\r\nAAA');
+		});
+
+		test('transcription failure: shows error, does not insert into editor', async () => {
+			const doc = await vscode.workspace.openTextDocument({ content: 'AAAAAA' });
+			const editor = await vscode.window.showTextDocument(doc);
+			const pos = new vscode.Position(0, 3);
+			editor.selection = new vscode.Selection(pos, pos);
+
+			// Temporarily override the stub to simulate a Groq API error.
+			const original = (ext as any).transcribeFn;
+			(ext as any).transcribeFn = async () => { throw new Error('401 Invalid API Key'); };
+			try {
+				await vscode.commands.executeCommand('simple-dictation.startRecording');
+				await vscode.commands.executeCommand('simple-dictation.stopRecording');
+				assert.strictEqual(doc.getText(), 'AAAAAA', 'document should be unmodified on transcription failure');
+			} finally {
+				(ext as any).transcribeFn = original;
+			}
 		});
 
 		test('no active editor: startRecording shows warning and does not throw', async () => {

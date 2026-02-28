@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { DaemonClient } from './daemon.js';
+import { transcribe } from './transcribe.js';
 
 const SECRET_KEYS = ['GROQ_API_KEY', 'ANTHROPIC_API_KEY'] as const;
 export type Secrets = Record<typeof SECRET_KEYS[number], string>;
@@ -37,13 +38,17 @@ export function loadSecrets(secretsPath: string): { secrets?: Secrets; error?: s
 	};
 }
 
-let recordingEditor: vscode.TextEditor | undefined; // Which editor was active when recording started
+// Recording state — written by startRecording, read and cleared by stopRecording.
+let recordingEditor: vscode.TextEditor | undefined;
 let recordingTimeout: ReturnType<typeof setTimeout> | undefined;
 export let daemonProcess: childProcess.ChildProcess | undefined;
 export let secrets: Secrets | undefined;
 
 // Hard limit to prevent a runaway recording if stopRecording is never called.
 const RECORDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+// Exported so tests can swap in a mock without needing a real Groq API key.
+export let transcribeFn: typeof transcribe = transcribe;
 
 function spawnDaemon(context: vscode.ExtensionContext, output: vscode.OutputChannel): void {
 	const daemonPath = path.join(context.extensionPath, 'daemon.py');
@@ -147,18 +152,39 @@ export function activate(context: vscode.ExtensionContext) {
 			const flacPath = await daemonClient.sendStop();
 			output.appendLine(`Recording saved: ${flacPath}`);
 
+			const model = vscode.workspace.getConfiguration('dictation').get<string>('groqModel', 'whisper-large-v3-turbo')!;
+
+			let transcript: string;
+			try {
+				transcript = await transcribeFn(flacPath, secrets!.GROQ_API_KEY, model);
+				output.appendLine('Transcription complete');
+			} finally {
+				// Delete the FLAC file whether transcription succeeded or failed.
+				try {
+					fs.unlinkSync(flacPath);
+				} catch (unlinkErr) {
+					output.appendLine(`Warning: could not delete temp file ${flacPath}: ${unlinkErr}`);
+				}
+			}
+
+			// Insert transcript with [unformatted] tag so it is visually
+			// distinguishable until the Claude formatting pass is added.
 			const eol = editor.document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
 			await editor.edit(editBuilder => {
-				editBuilder.insert(editor.selection.active, `${eol}Lorem ipsum placeholder text.${eol}`);
+				editBuilder.insert(editor.selection.active, `${eol}[unformatted]${eol}${transcript}${eol}`);
 			});
 
 			statusBarItem.text = '$(check) Done';
 		} catch (err: unknown) {
+			// On Groq timeout or API error, log details and show error in status bar.
+			// Don't insert anything into the editor.
 			const msg = err instanceof Error ? err.message : String(err);
-			vscode.window.showErrorMessage(`Simple Dictation: stop recording failed — ${msg}`);
-		// setContext goes in finally so the keybinding always reflects reality —
-		// a failed sendStop() should still re-enable the start binding.
+			output.appendLine(`Error: ${msg}`);
+			statusBarItem.text = '$(error) Error';
+			vscode.window.showErrorMessage(`Simple Dictation: ${msg}`);
 		} finally {
+			// setContext goes in finally so the keybinding always reflects reality.
+			// I.e., a failed sendStop() should still re-enable the start binding.
 			vscode.commands.executeCommand('setContext', 'simple-dictation.recording', false);
 		}
 	});
