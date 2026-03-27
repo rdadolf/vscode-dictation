@@ -7,6 +7,31 @@ import { format } from './format.js';
 import { transcribe } from './transcribe.js';
 
 const SECRET_KEYS = ['GROQ_API_KEY', 'ANTHROPIC_API_KEY'] as const;
+
+// Determines whitespace to prepend so consecutive transcripts flow naturally.
+// Only handles spacing — never modifies the transcript content itself.
+const SPACING_RULES: [test: RegExp, prefix: string][] = [
+	[/[\n\r]/, ''],    // start of line → no space needed
+	[/\s/, ''],        // existing whitespace → no space needed
+	[/["'(\[{]/, ''],  // opening quote/bracket → no space needed
+	[/\S/, ' '],       // any other non-whitespace → insert a space
+];
+
+function contextPrefix(doc: vscode.TextDocument, pos: vscode.Position): string {
+	if (pos.isEqual(new vscode.Position(0, 0))) {
+		return '';
+	}
+	const before = pos.character > 0
+		? doc.getText(new vscode.Range(pos.translate(0, -1), pos))
+		: '\n';
+	for (const [test, prefix] of SPACING_RULES) {
+		if (test.test(before)) {
+			return prefix;
+		}
+	}
+	return '';
+}
+
 export type Secrets = Record<typeof SECRET_KEYS[number], string>;
 
 export function loadSecrets(secretsPath: string): { secrets?: Secrets; error?: string } {
@@ -232,8 +257,10 @@ export function activate(context: vscode.ExtensionContext) {
 				insertText = `[unformatted]${eol}${transcript}`;
 			}
 
+			insertText = contextPrefix(editor.document, editor.selection.active) + insertText;
+
 			await editor.edit(editBuilder => {
-				editBuilder.insert(editor.selection.active, `${eol}${insertText}${eol}`);
+				editBuilder.insert(editor.selection.active, insertText);
 			});
 			statusBarItem.text = '$(check) Done';
 
