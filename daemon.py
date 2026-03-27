@@ -119,11 +119,14 @@ async def handler(websocket) -> None:
 
 
 async def main(port: int) -> None:
-    log.info('Starting daemon on ws://localhost:%d', port)
+    log.info('Starting daemon on ws://localhost:%s', port)
     try:
-        async with websockets.serve(handler, 'localhost', port):
-            log.info('Daemon ready')
-            await asyncio.Future()  # run forever
+        server = await websockets.serve(handler, 'localhost', port)
+        actual_port = server.sockets[0].getsockname()[1]
+        # Machine-readable line the extension parses to discover the ephemeral port.
+        print(f'DAEMON_PORT={actual_port}', flush=True)
+        log.info('Daemon ready on port %d', actual_port)
+        await asyncio.Future()  # run forever
     except OSError as e:
         log.error(
             'Cannot bind to port %d: %s — a previous daemon may still be running. '

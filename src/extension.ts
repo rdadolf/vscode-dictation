@@ -53,14 +53,13 @@ const RECORDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 export let transcribeFn: typeof transcribe = transcribe;
 export let formatFn: typeof format = format;
 
-function spawnDaemon(context: vscode.ExtensionContext, output: vscode.OutputChannel): void {
+function spawnDaemon(context: vscode.ExtensionContext, output: vscode.OutputChannel): Promise<number> {
 	const daemonPath = path.join(context.extensionPath, 'daemon.py');
-	const port = vscode.workspace.getConfiguration('dictation').get<number>('daemonPort', 49152);
+	const port = vscode.workspace.getConfiguration('dictation').get<number>('daemonPort', 0);
 
 	output.appendLine(`Spawning daemon: py ${daemonPath} --port ${port}`);
 	daemonProcess = childProcess.spawn('py', [daemonPath, '--port', String(port)]);
 
-	daemonProcess.stdout?.on('data', (data: Buffer) => output.append(data.toString()));
 	daemonProcess.stderr?.on('data', (data: Buffer) => output.append(data.toString()));
 
 	daemonProcess.on('exit', (code) => {
@@ -76,6 +75,21 @@ function spawnDaemon(context: vscode.ExtensionContext, output: vscode.OutputChan
 		output.appendLine(`Failed to spawn daemon: ${err.message}`);
 		vscode.window.showErrorMessage(`Simple Dictation: failed to start daemon — ${err.message}`);
 		daemonProcess = undefined;
+	});
+
+	return new Promise<number>((resolve, reject) => {
+		let stdoutBuf = '';
+		daemonProcess!.stdout?.on('data', (data: Buffer) => {
+			const chunk = data.toString();
+			output.append(chunk);
+			stdoutBuf += chunk;
+			const match = stdoutBuf.match(/^DAEMON_PORT=(\d+)$/m);
+			if (match) {
+				resolve(Number(match[1]));
+			}
+		});
+		daemonProcess!.on('exit', () => reject(new Error('Daemon exited before reporting its port')));
+		daemonProcess!.on('error', (err) => reject(err));
 	});
 }
 
@@ -93,11 +107,16 @@ export function activate(context: vscode.ExtensionContext) {
 		secrets = loadedSecrets;
 	}
 
-	spawnDaemon(context, output);
-
-	const port = vscode.workspace.getConfiguration('dictation').get<number>('daemonPort', 49152);
-	const daemonClient = new DaemonClient(port, output);
-	context.subscriptions.push(daemonClient);
+	const daemonPortReady = spawnDaemon(context, output).then(actualPort => {
+		output.appendLine(`Daemon listening on port ${actualPort}`);
+		const client = new DaemonClient(actualPort, output);
+		context.subscriptions.push(client);
+		return client;
+	}, err => {
+		output.appendLine(`Daemon failed to start: ${err.message}`);
+		vscode.window.showErrorMessage(`Simple Dictation: daemon failed to start — ${err.message}`);
+		return undefined;
+	});
 
 	const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 	context.subscriptions.push(statusBarItem);
@@ -118,6 +137,11 @@ export function activate(context: vscode.ExtensionContext) {
 		if (!editor) {
 			output.appendLine('startRecording: no active editor');
 			vscode.window.showWarningMessage('Simple Dictation: no active editor.');
+			return;
+		}
+		const daemonClient = await daemonPortReady;
+		if (!daemonClient) {
+			vscode.window.showErrorMessage('Simple Dictation: daemon is not running.');
 			return;
 		}
 
@@ -163,6 +187,12 @@ export function activate(context: vscode.ExtensionContext) {
 		try {
 			if (!editor) {
 				vscode.window.showWarningMessage('Simple Dictation: no editor was active when recording started.');
+				return;
+			}
+
+			const daemonClient = await daemonPortReady;
+			if (!daemonClient) {
+				vscode.window.showErrorMessage('Simple Dictation: daemon is not running.');
 				return;
 			}
 

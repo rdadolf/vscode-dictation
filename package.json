@@ -45,8 +45,8 @@
       "properties": {
         "dictation.daemonPort": {
           "type": "number",
-          "default": 49152,
-          "description": "TCP port the audio daemon listens on."
+          "default": 0,
+          "description": "TCP port the audio daemon listens on. Use 0 (default) to let the OS assign an ephemeral port."
         },
         "dictation.groqModel": {
           "type": "string",

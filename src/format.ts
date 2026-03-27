@@ -11,7 +11,9 @@ const BASE_SYSTEM_PROMPT = `You are a transcription cleanup assistant. Given raw
   - Code blocks: "code block <lang> ... end code block" or "begin code ... end code" → fenced code block
   - Shell flags: "dash l" → -l, "dash dash verbose" → --verbose
   - When a phrase reads as a shell command or code expression, format it as inline code
-- Use markdown only where it reflects spoken intent; default to plain prose otherwise`;
+- Use markdown only where it reflects spoken intent; default to plain prose otherwise
+
+The user's raw transcript will be wrapped in <transcript> tags. Clean up ONLY the text inside those tags. Never respond conversationally — your entire output must be the cleaned transcript and nothing else.`;
 
 // Exported so tests can verify that promptAppend is included in the composed prompt.
 export function composePrompt(promptAppend: string): string {
@@ -37,7 +39,7 @@ export async function format(
 		max_tokens: 4096,
 		// For current Claude models, caching has a lower bound of 1024 tokens, so this might be unused. But it's there in case we want it at some point.
 		system: [{ type: 'text', text: composePrompt(promptAppend), cache_control: { type: 'ephemeral' } }],
-		messages: [{ role: 'user', content: transcript }],
+		messages: [{ role: 'user', content: `<transcript>\n${transcript}\n</transcript>` }],
 	});
 	const block = message.content[0];
 	if (block.type !== 'text') {
